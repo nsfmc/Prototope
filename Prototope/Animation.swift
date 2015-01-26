@@ -21,9 +21,9 @@ extension Layer {
 
 			someLayer.animators.x.target = 400
 			someLayer.animators.x.velocity = touchSequence.currentVelocityInLayer(someLayer.superlayer!)
-	
+
 		See documentation for LayerAnimatorStore and Animator for more information.
-	
+
 		If you just want to change a bunch of values in a fixed-time animation, see
 		Layer.animateWithDuration(:, animations:, completionHandler:). */
 	public var animators: LayerAnimatorStore {
@@ -47,6 +47,8 @@ public class LayerAnimatorStore {
 	public var bounds: Animator<Rect>
 	public var backgroundColor: Animator<Color>
 	public var alpha: Animator<Double>
+	public var rotationRadians: Animator<Double>
+
 /*	TODO:
 	width, height, anchorPoint, cornerRadius,
 	scale, scaleX, scaleY, rotationDegrees, rotationRadians,
@@ -65,7 +67,8 @@ public class LayerAnimatorStore {
 		frame = Animator(layer: layer, propertyName: kPOPViewFrame)
 		backgroundColor = Animator(layer: layer, propertyName: kPOPViewBackgroundColor)
 		alpha = Animator(layer: layer, propertyName: kPOPViewAlpha)
- 	}
+		rotationRadians = Animator(layer: layer, propertyName: kPOPLayerRotation, shouldAnimateLayer: true)
+	}
 }
 
 // TODO: support decay-type animations too.
@@ -114,10 +117,17 @@ public class Animator<Target: AnimatorValueConvertible> {
 	let property: POPAnimatableProperty
 	private weak var layer: Layer?
 	private let animationDelegate = AnimationDelegate()
+    private var shouldAnimateLayer: Bool = false
 
 	init(layer: Layer, property: POPAnimatableProperty) {
 		self.property = property
 		self.layer = layer
+	}
+
+	convenience init(layer: Layer, propertyName: String, shouldAnimateLayer: Bool) {
+		let property = POPAnimatableProperty.propertyWithName(propertyName) as POPAnimatableProperty
+		self.init(layer: layer, property: property)
+		self.shouldAnimateLayer = shouldAnimateLayer
 	}
 
 	convenience init(layer: Layer, propertyName: String) {
@@ -127,16 +137,24 @@ public class Animator<Target: AnimatorValueConvertible> {
 
 	/** Immediately stops the animation. */
 	public func stop() {
-		layer?.view.pop_removeAnimationForKey(property.name)
+		var animationTarget: NSObject? = layer?.view
+		if self.shouldAnimateLayer {
+			animationTarget = layer?.view.layer
+		}
+		animationTarget?.pop_removeAnimationForKey(property.name)
 	}
 
 	private func updateAnimationCreatingIfNecessary(createIfNecessary: Bool) {
-		var animation = layer?.view.pop_animationForKey(property.name) as POPSpringAnimation?
+		var animationTarget: NSObject? = layer?.view
+		if self.shouldAnimateLayer {
+			animationTarget = layer?.view.layer
+		}
+		var animation = animationTarget?.pop_animationForKey(property.name) as POPSpringAnimation?
 		if animation == nil && createIfNecessary {
 			animation = POPSpringAnimation()
 			animation!.delegate = animationDelegate
 			animation!.property = property
-			layer?.view.pop_addAnimation(animation!, forKey: property.name)
+			animationTarget?.pop_addAnimation(animation!, forKey: property.name)
 		}
 
 		if let animation = animation {
